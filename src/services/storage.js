@@ -3,7 +3,7 @@ import { INITIAL_CARPARKS } from '../data/carparkData.js';
 import { MALL_PROMOTIONS } from '../data/mallPromos.js';
 
 const STORAGE_KEYS = {
-  CARPARKS: 'parkpulse_carparks_v1',
+  CARPARKS: 'parkpulse_carparks_v2',
   ACTIVE_SESSION: 'parkpulse_active_session',
   RESERVATIONS: 'parkpulse_reservations',
   VEHICLE_TYPE: 'parkpulse_selected_vehicle',
@@ -33,7 +33,28 @@ export class AppState {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CARPARKS);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Validate & ensure every carpark has all required fields
+          return parsed.map(c => ({
+            id: c.id || `cp-${Math.random().toString(36).substr(2, 6)}`,
+            code: c.code || 'CP',
+            govCode: c.govCode || '',
+            name: c.name || 'Singapore Carpark',
+            zone: c.zone || 'Central',
+            region: c.region || 'Central',
+            address: c.address || 'Singapore',
+            operator: c.operator || 'LTA / Commercial',
+            distanceKm: c.distanceKm || 1.0,
+            availableLots: c.availableLots || { sedan: 40, motorcycle: 15, heavy: 5 },
+            totalLots: c.totalLots || { sedan: 100, motorcycle: 30, heavy: 10 },
+            expiringWithin15Min: c.expiringWithin15Min || { sedan: 2, motorcycle: 1, heavy: 0 },
+            rates: c.rates || { sedan: { weekday: '$1.20 / 30m', peak: '$1.50 / 30m', evening: '$3.50/entry' } },
+            features: Array.isArray(c.features) ? c.features : ['Sheltered EPS'],
+            spots: Array.isArray(c.spots) ? c.spots : [],
+            occupancyHistory: c.occupancyHistory || {}
+          }));
+        }
       }
     } catch (e) {
       console.warn('Using initial carpark data', e);

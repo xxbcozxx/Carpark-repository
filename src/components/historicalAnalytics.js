@@ -4,19 +4,20 @@ import { VEHICLE_TYPES } from '../data/carparkData.js';
 import { openReservationModal } from './spotReservationModal.js';
 
 export function renderHistoricalAnalytics(container) {
-  let selectedCpId = appState.selectedCarparkId || appState.carparks[0].id;
+  const defaultCp = (appState.carparks && appState.carparks[0]) || { id: 'suntec-city', name: 'Suntec City', code: 'SUNTEC', zone: 'Central' };
+  let selectedCpId = appState.selectedCarparkId || defaultCp.id;
   let dayMode = 'weekday'; // 'weekday' | 'weekend'
-  let selectedVehicle = appState.selectedVehicle;
+  let selectedVehicle = appState.selectedVehicle || 'sedan';
 
   function update() {
-    const cp = appState.carparks.find(c => c.id === selectedCpId) || appState.carparks[0];
-    const history = cp.occupancyHistory || {};
+    const cp = (appState.carparks && appState.carparks.find(c => c.id === selectedCpId)) || defaultCp;
+    const history = (cp && cp.occupancyHistory) || {};
     const hourlyData = dayMode === 'weekday' 
       ? (history.hourlyWeekday || [20, 15, 10, 8, 15, 30, 60, 85, 90, 88, 95, 98, 95, 90, 85, 88, 92, 95, 88, 75, 55, 40, 28, 20])
       : (history.hourlyWeekend || [25, 18, 12, 10, 15, 25, 45, 68, 85, 94, 98, 100, 99, 98, 96, 98, 99, 96, 90, 82, 65, 45, 32, 24]);
 
-    const total = cp.totalLots[selectedVehicle] || 100;
-    const available = cp.availableLots[selectedVehicle] || 0;
+    const total = (cp.totalLots && cp.totalLots[selectedVehicle]) || 100;
+    const available = (cp.availableLots && cp.availableLots[selectedVehicle]) !== undefined ? cp.availableLots[selectedVehicle] : 0;
     const currentOccupancyPercent = Math.min(100, Math.round(((total - available) / total) * 100));
 
     // Calculate stats

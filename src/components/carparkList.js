@@ -4,46 +4,68 @@ import { VEHICLE_TYPES } from '../data/carparkData.js';
 import { openReservationModal } from './spotReservationModal.js';
 
 export function renderCarparkList(container) {
-  const vType = appState.selectedVehicle;
-  const currentVehicleInfo = VEHICLE_TYPES[vType.toUpperCase()] || VEHICLE_TYPES.SEDAN;
+  const vType = appState.selectedVehicle || 'sedan';
+  const currentVehicleInfo = VEHICLE_TYPES[(vType || 'sedan').toUpperCase()] || VEHICLE_TYPES.SEDAN;
   
   // Base carpark dataset
-  const allCarparks = [...appState.carparks];
+  const allCarparks = Array.isArray(appState.carparks) ? [...appState.carparks] : [];
 
   // Region / Zone filter
   let filteredCarparks = allCarparks;
   if (appState.selectedZone && appState.selectedZone !== 'ALL') {
-    filteredCarparks = filteredCarparks.filter(c => 
-      c.zone.toLowerCase().includes(appState.selectedZone.toLowerCase()) ||
-      c.region.toLowerCase().includes(appState.selectedZone.toLowerCase()) ||
-      c.address.toLowerCase().includes(appState.selectedZone.toLowerCase())
-    );
+    const selZone = String(appState.selectedZone || '').toLowerCase();
+    filteredCarparks = filteredCarparks.filter(c => {
+      if (!c) return false;
+      const zone = String(c.zone || '').toLowerCase();
+      const region = String(c.region || '').toLowerCase();
+      const address = String(c.address || '').toLowerCase();
+      return zone.includes(selZone) || region.includes(selZone) || address.includes(selZone);
+    });
   }
 
   // Search Query matching
-  const hasSearch = appState.searchQuery && appState.searchQuery.trim().length > 0;
+  const hasSearch = Boolean(appState.searchQuery && appState.searchQuery.trim().length > 0);
   let primaryMatches = [];
   let otherLocationCarparks = [];
 
   if (hasSearch) {
-    const q = appState.searchQuery.trim().toLowerCase();
+    const q = String(appState.searchQuery || '').trim().toLowerCase();
     
-    // Split into primary matches (matching location/name/code/zone/address)
-    primaryMatches = allCarparks.filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      c.zone.toLowerCase().includes(q) || 
-      c.region.toLowerCase().includes(q) ||
-      c.address.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q) ||
-      (c.govCode && c.govCode.toLowerCase().includes(q)) ||
-      c.operator.toLowerCase().includes(q) ||
-      (c.features && c.features.some(f => f.toLowerCase().includes(q))) ||
-      (c.spots && c.spots.some(s => s.id.toLowerCase().includes(q) || (s.level && s.level.toLowerCase().includes(q)) || (s.zone && s.zone.toLowerCase().includes(q))))
-    );
+    // Split into primary matches (matching location/name/code/zone/address/spots)
+    primaryMatches = allCarparks.filter(c => {
+      if (!c) return false;
+      const name = String(c.name || '').toLowerCase();
+      const zone = String(c.zone || '').toLowerCase();
+      const region = String(c.region || '').toLowerCase();
+      const address = String(c.address || '').toLowerCase();
+      const code = String(c.code || '').toLowerCase();
+      const govCode = String(c.govCode || '').toLowerCase();
+      const operator = String(c.operator || '').toLowerCase();
+      
+      const matchBasic = name.includes(q) || zone.includes(q) || region.includes(q) || 
+                         address.includes(q) || code.includes(q) || (govCode && govCode.includes(q)) || 
+                         operator.includes(q);
+      
+      if (matchBasic) return true;
+
+      const matchFeatures = Array.isArray(c.features) && c.features.some(f => 
+        typeof f === 'string' && f.toLowerCase().includes(q)
+      );
+      if (matchFeatures) return true;
+
+      const matchSpots = Array.isArray(c.spots) && c.spots.some(s => {
+        if (!s) return false;
+        const spotId = String(s.id || '').toLowerCase();
+        const spotLevel = String(s.level || '').toLowerCase();
+        const spotZone = String(s.zone || '').toLowerCase();
+        return spotId.includes(q) || spotLevel.includes(q) || spotZone.includes(q);
+      });
+      return matchSpots;
+    });
 
     // Other locations across Singapore (to ensure user can view alternatives islandwide)
     const primaryIds = new Set(primaryMatches.map(c => c.id));
-    otherLocationCarparks = allCarparks.filter(c => !primaryIds.has(c.id));
+    otherLocationCarparks = allCarparks.filter(c => c && !primaryIds.has(c.id));
   } else {
     primaryMatches = filteredCarparks;
     otherLocationCarparks = [];
@@ -313,11 +335,17 @@ export function renderCarparkList(container) {
 }
 
 function renderCarparkCard(cp, vType, isPrimary = true) {
-  const available = cp.availableLots[vType] || 0;
-  const total = cp.totalLots[vType] || 100;
+  if (!cp) return '';
+  const vehicle = vType || 'sedan';
+  const availableLots = cp.availableLots || {};
+  const totalLots = cp.totalLots || {};
+  const expiringLots = cp.expiringWithin15Min || {};
+
+  const available = availableLots[vehicle] !== undefined ? availableLots[vehicle] : (availableLots.sedan || 0);
+  const total = totalLots[vehicle] !== undefined ? totalLots[vehicle] : (totalLots.sedan || 100);
   const occupied = Math.max(0, total - available);
-  const expiring = cp.expiringWithin15Min[vType] || 0;
-  const occupancyPercent = Math.min(100, Math.round(((total - available) / total) * 100));
+  const expiring = expiringLots[vehicle] !== undefined ? expiringLots[vehicle] : (expiringLots.sedan || 0);
+  const occupancyPercent = total > 0 ? Math.min(100, Math.round(((total - available) / total) * 100)) : 0;
 
   const isFull = available <= 0;
   const isCrowded = occupancyPercent >= 85;
@@ -332,9 +360,11 @@ function renderCarparkCard(cp, vType, isPrimary = true) {
     statusText = `Crowded (${available} left)`;
   }
 
-  const rateInfo = cp.rates[vType] || cp.rates.sedan;
-  const spots = cp.spots || [];
-  const accordionId = `spots-accordion-${cp.id}`;
+  const rates = cp.rates || {};
+  const rateInfo = rates[vehicle] || rates.sedan || { weekday: '$1.20 / 30 mins', peak: '$1.50 / 30 mins' };
+  const spots = Array.isArray(cp.spots) ? cp.spots : [];
+  const accordionId = `spots-accordion-${cp.id || Math.random().toString(36).substr(2, 9)}`;
+  const operatorText = cp.operator ? cp.operator.split('/')[0].trim() : 'Singapore Carpark';
 
   return `
     <div class="bg-white rounded-3xl border ${isPrimary ? 'border-slate-200' : 'border-slate-200/80 bg-slate-50/40'} shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden">
@@ -344,25 +374,25 @@ function renderCarparkCard(cp, vType, isPrimary = true) {
           <div>
             <div class="flex items-center gap-1.5 flex-wrap">
               <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 font-mono">
-                ${cp.code}
+                ${cp.code || 'CP'}
               </span>
               <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
                 ${cp.region || 'Singapore'}
               </span>
               <span class="px-2 py-0.5 rounded-lg text-[10px] font-medium bg-slate-100 text-slate-600">
-                ${cp.operator.split('/')[0].trim()}
+                ${operatorText}
               </span>
               <span class="text-xs text-slate-400 font-medium">
-                • ${cp.distanceKm} km away
+                • ${cp.distanceKm || '1.2'} km away
               </span>
             </div>
 
             <h3 class="text-lg font-bold text-slate-800 mt-2 leading-snug">
-              ${cp.name}
+              ${cp.name || 'Singapore Parking Facility'}
             </h3>
             <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
               <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-              <span class="line-clamp-1">${cp.address}</span>
+              <span class="line-clamp-1">${cp.address || 'Singapore'}</span>
             </p>
           </div>
 
