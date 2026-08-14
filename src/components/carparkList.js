@@ -31,7 +31,7 @@ export function renderCarparkList(container) {
             <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
               <span>Islandwide Carpark Locator & Lot Telemetry</span>
               <span id="cp-total-count-badge" class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold font-mono">
-                ${allCarparks.length} Singapore Facilities
+                ${allCarparks.length === 1 ? '1 Available Carpark' : `${allCarparks.length} Available Carparks`}
               </span>
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
@@ -39,8 +39,8 @@ export function renderCarparkList(container) {
             </p>
           </div>
 
-          <!-- Search Bar with explicit Search Button -->
-          <form id="cp-search-form" class="flex flex-col sm:flex-row items-stretch gap-2.5">
+          <!-- Real-Time Search Bar & Vehicle Filter -->
+          <div class="flex flex-col sm:flex-row items-stretch gap-2.5">
             <div class="relative flex-1">
               <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -62,16 +62,6 @@ export function renderCarparkList(container) {
               </button>
             </div>
 
-            <!-- Explicit Search Button -->
-            <button 
-              type="submit" 
-              id="btn-search-trigger"
-              class="px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              <span>Search Carpark</span>
-            </button>
-
             <!-- Vehicle Type Filter -->
             <div id="vehicle-type-filters" class="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
               ${Object.values(VEHICLE_TYPES).map(v => {
@@ -92,7 +82,7 @@ export function renderCarparkList(container) {
                 `;
               }).join('')}
             </div>
-          </form>
+          </div>
 
           <!-- Region & Town Filter Pills -->
           <div id="zone-filter-pills" class="flex items-center gap-2 overflow-x-auto pt-4 pb-1 no-scrollbar border-t border-slate-100 mt-4">
@@ -122,17 +112,10 @@ export function renderCarparkList(container) {
     `;
 
     // Attach search and filter events on initial mount
-    const searchForm = container.querySelector('#cp-search-form');
     const searchInput = container.querySelector('#cp-search-input');
     const clearSearch = container.querySelector('#btn-clear-search');
 
-    if (searchForm && searchInput) {
-      searchForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        appState.searchQuery = searchInput.value;
-        renderCarparkResults(container);
-      });
-
+    if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         appState.searchQuery = e.target.value;
         if (clearSearch) {
@@ -143,6 +126,12 @@ export function renderCarparkList(container) {
           }
         }
         renderCarparkResults(container);
+      });
+
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+        }
       });
     }
 
@@ -209,11 +198,6 @@ export function renderCarparkList(container) {
           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
       }`;
     });
-
-    const totalBadge = container.querySelector('#cp-total-count-badge');
-    if (totalBadge && Array.isArray(appState.carparks)) {
-      totalBadge.textContent = `${appState.carparks.length} Singapore Facilities`;
-    }
   }
 
   // Render the carpark cards and result telemetry
@@ -287,6 +271,22 @@ function renderCarparkResults(container) {
   } else {
     primaryMatches = filteredCarparks;
     otherLocationCarparks = [];
+  }
+
+  // Dynamically update the top header available carparks count badge
+  const totalBadge = container.querySelector('#cp-total-count-badge');
+  if (totalBadge) {
+    const matchCount = primaryMatches.length;
+    if (matchCount === 1) {
+      totalBadge.textContent = '1 Available Carpark';
+      totalBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold font-mono';
+    } else if (matchCount === 0) {
+      totalBadge.textContent = '0 Available Carparks';
+      totalBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold font-mono';
+    } else {
+      totalBadge.textContent = `${matchCount} Available Carparks`;
+      totalBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold font-mono';
+    }
   }
 
   resultsMount.innerHTML = `
