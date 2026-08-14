@@ -9,7 +9,6 @@ import { renderCarparkList } from './components/carparkList.js';
 import { renderMallDealsPage } from './components/mallDealsPage.js';
 import { renderHistoricalAnalytics } from './components/historicalAnalytics.js';
 import { renderActiveSessionView } from './components/activeSessionView.js';
-import { renderApiGuideView } from './components/apiGuideView.js';
 
 function initApp() {
   const root = document.getElementById('root');
@@ -76,8 +75,6 @@ function initApp() {
       renderHistoricalAnalytics(viewMount);
     } else if (appState.activeTab === 'session') {
       renderActiveSessionView(viewMount);
-    } else if (appState.activeTab === 'apis') {
-      renderApiGuideView(viewMount);
     }
   }
 

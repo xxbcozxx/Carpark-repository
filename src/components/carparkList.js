@@ -2,7 +2,6 @@
 import { appState } from '../services/storage.js';
 import { VEHICLE_TYPES } from '../data/carparkData.js';
 import { openReservationModal } from './spotReservationModal.js';
-import { fetchLiveSgGovCarparks } from '../services/apiSync.js';
 
 export function renderCarparkList(container) {
   const vType = appState.selectedVehicle;
@@ -66,39 +65,17 @@ export function renderCarparkList(container) {
     <!-- Top Filter & Search Controls -->
     <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm mb-6">
       
-      <!-- Top Action Bar with Search and Sync -->
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <span>Islandwide Carpark Locator & Lot Telemetry</span>
-            <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold font-mono">
-              ${allCarparks.length} Singapore Facilities
-            </span>
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">
-            Search any mall, HDB/URA town, terminal, exact lot number or region across Singapore.
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2 flex-wrap">
-          <!-- Live SG Gov Sync Button -->
-          <button 
-            id="btn-live-sg-sync" 
-            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs active:scale-95"
-            title="Fetch real-time carpark availability from Data.gov.sg"
-          >
-            <svg class="w-3.5 h-3.5 text-emerald-600 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-            <span id="sync-btn-label">🔄 Live Sync SG Gov Data</span>
-          </button>
-
-          <!-- API Guide Shortcut -->
-          <button 
-            id="btn-view-api-guide"
-            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 flex items-center gap-1.5 cursor-pointer transition-all"
-          >
-            <span>📡 APIs & LTA Specs</span>
-          </button>
-        </div>
+      <!-- Top Action Bar Header -->
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <span>Islandwide Carpark Locator & Lot Telemetry</span>
+          <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold font-mono">
+            ${allCarparks.length} Singapore Facilities
+          </span>
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Search any mall, HDB/URA town, terminal, exact lot number or region across Singapore.
+        </p>
       </div>
 
       <!-- Search Bar with explicit Search Button -->
@@ -309,62 +286,6 @@ export function renderCarparkList(container) {
       appState.setTab('analytics');
     });
   });
-
-  // API Guide tab button
-  const apiGuideBtn = container.querySelector('#btn-view-api-guide');
-  if (apiGuideBtn) {
-    apiGuideBtn.addEventListener('click', () => {
-      appState.setTab('apis');
-    });
-  }
-
-  // Live SG Gov Sync Button
-  const liveSyncBtn = container.querySelector('#btn-live-sg-sync');
-  const syncBtnLabel = container.querySelector('#sync-btn-label');
-  if (liveSyncBtn) {
-    liveSyncBtn.addEventListener('click', async () => {
-      liveSyncBtn.disabled = true;
-      if (syncBtnLabel) syncBtnLabel.textContent = 'Connecting Data.gov.sg...';
-
-      const res = await fetchLiveSgGovCarparks();
-      liveSyncBtn.disabled = false;
-
-      if (res.success && res.lookup) {
-        let updatedCount = 0;
-        appState.carparks.forEach(cp => {
-          if (cp.govCode && res.lookup[cp.govCode]) {
-            const govInfo = res.lookup[cp.govCode];
-            if (govInfo.C) {
-              cp.availableLots.sedan = govInfo.C.available;
-              cp.totalLots.sedan = govInfo.C.total || cp.totalLots.sedan;
-              updatedCount++;
-            }
-            if (govInfo.M) {
-              cp.availableLots.motorcycle = govInfo.M.available;
-            }
-            if (govInfo.H) {
-              cp.availableLots.heavy = govInfo.H.available;
-            }
-          }
-        });
-
-        appState.saveCarparks();
-        appState.notify();
-
-        if (syncBtnLabel) {
-          syncBtnLabel.textContent = `✓ Synced (${res.totalCarparksReported} lots)`;
-        }
-      } else {
-        if (syncBtnLabel) {
-          syncBtnLabel.textContent = '✓ Sensor Live (Simulated)';
-        }
-      }
-
-      setTimeout(() => {
-        if (syncBtnLabel) syncBtnLabel.textContent = '🔄 Live Sync SG Gov Data';
-      }, 3500);
-    });
-  }
 
   // Toggle Spot Breakdown Accordion
   container.querySelectorAll('.btn-toggle-spots').forEach(btn => {
