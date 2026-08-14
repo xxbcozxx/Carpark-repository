@@ -53,6 +53,8 @@ function initApp() {
   const bannerMount = root.querySelector('#banner-mount');
   const viewMount = root.querySelector('#view-mount');
 
+  let lastRenderedTab = null;
+
   function renderCurrentView() {
     renderNavbar(navbarMount);
 
@@ -65,8 +67,12 @@ function initApp() {
       bannerMount.innerHTML = '';
     }
 
-    // Switch views
-    viewMount.innerHTML = '';
+    // Switch views: only clear if switching between different tabs
+    if (lastRenderedTab !== appState.activeTab) {
+      viewMount.innerHTML = '';
+      lastRenderedTab = appState.activeTab;
+    }
+
     if (appState.activeTab === 'explore') {
       renderCarparkList(viewMount);
     } else if (appState.activeTab === 'deals') {
