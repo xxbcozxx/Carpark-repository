@@ -1,0 +1,6 @@
+{
+  "name": "ParkPulse - Real-Time Smart Carpark & Deals",
+  "description": "Real-time carpark availability, spot reservation, expiring coupon countdowns, nearby mall parking discounts, digital payments, and historical facility occupancy analytics.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
