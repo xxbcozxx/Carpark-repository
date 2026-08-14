@@ -2,37 +2,107 @@
 import { appState } from '../services/storage.js';
 import { VEHICLE_TYPES } from '../data/carparkData.js';
 import { openReservationModal } from './spotReservationModal.js';
+import { fetchLiveSgGovCarparks } from '../services/apiSync.js';
 
 export function renderCarparkList(container) {
   const vType = appState.selectedVehicle;
   const currentVehicleInfo = VEHICLE_TYPES[vType.toUpperCase()] || VEHICLE_TYPES.SEDAN;
   
-  // Filter carparks
-  let carparks = [...appState.carparks];
+  // Base carpark dataset
+  const allCarparks = [...appState.carparks];
 
+  // Region / Zone filter
+  let filteredCarparks = allCarparks;
   if (appState.selectedZone && appState.selectedZone !== 'ALL') {
-    carparks = carparks.filter(c => c.zone.toLowerCase().includes(appState.selectedZone.toLowerCase()));
-  }
-
-  if (appState.searchQuery && appState.searchQuery.trim()) {
-    const q = appState.searchQuery.toLowerCase();
-    carparks = carparks.filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      c.zone.toLowerCase().includes(q) || 
-      c.address.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q) ||
-      c.operator.toLowerCase().includes(q)
+    filteredCarparks = filteredCarparks.filter(c => 
+      c.zone.toLowerCase().includes(appState.selectedZone.toLowerCase()) ||
+      c.region.toLowerCase().includes(appState.selectedZone.toLowerCase()) ||
+      c.address.toLowerCase().includes(appState.selectedZone.toLowerCase())
     );
   }
 
-  // Get distinct zones for filter pills
-  const allZones = ['ALL', 'Marina Bay', 'Bugis', 'Chinatown', 'Woodlands', 'Jurong West', 'HarbourFront', 'Toa Payoh'];
+  // Search Query matching
+  const hasSearch = appState.searchQuery && appState.searchQuery.trim().length > 0;
+  let primaryMatches = [];
+  let otherLocationCarparks = [];
+
+  if (hasSearch) {
+    const q = appState.searchQuery.trim().toLowerCase();
+    
+    // Split into primary matches (matching location/name/code/zone/address)
+    primaryMatches = allCarparks.filter(c => 
+      c.name.toLowerCase().includes(q) || 
+      c.zone.toLowerCase().includes(q) || 
+      c.region.toLowerCase().includes(q) ||
+      c.address.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      (c.govCode && c.govCode.toLowerCase().includes(q)) ||
+      c.operator.toLowerCase().includes(q) ||
+      (c.features && c.features.some(f => f.toLowerCase().includes(q))) ||
+      (c.spots && c.spots.some(s => s.id.toLowerCase().includes(q) || (s.level && s.level.toLowerCase().includes(q)) || (s.zone && s.zone.toLowerCase().includes(q))))
+    );
+
+    // Other locations across Singapore (to ensure user can view alternatives islandwide)
+    const primaryIds = new Set(primaryMatches.map(c => c.id));
+    otherLocationCarparks = allCarparks.filter(c => !primaryIds.has(c.id));
+  } else {
+    primaryMatches = filteredCarparks;
+    otherLocationCarparks = [];
+  }
+
+  // Quick region filter pills across all of Singapore
+  const regions = [
+    { id: 'ALL', label: '🇸🇬 All Singapore' },
+    { id: 'Central', label: '🏙️ Central / CBD' },
+    { id: 'Orchard', label: '🛍️ Orchard / Bugis' },
+    { id: 'East', label: '✈️ East (Changi / Tampines / Bedok)' },
+    { id: 'West', label: '🏢 West (Jurong / Clementi / IMM)' },
+    { id: 'North', label: '🚛 North (Woodlands / Yishun / AMK)' },
+    { id: 'North-East', label: '🌳 North-East (Punggol / Serangoon)' },
+    { id: 'South', label: '🎡 South (VivoCity / Sentosa)' }
+  ];
 
   container.innerHTML = `
     <!-- Top Filter & Search Controls -->
     <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm mb-6">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <!-- Search input -->
+      
+      <!-- Top Action Bar with Search and Sync -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <span>Islandwide Carpark Locator & Lot Telemetry</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold font-mono">
+              ${allCarparks.length} Singapore Facilities
+            </span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Search any mall, HDB/URA town, terminal, exact lot number or region across Singapore.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- Live SG Gov Sync Button -->
+          <button 
+            id="btn-live-sg-sync" 
+            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs active:scale-95"
+            title="Fetch real-time carpark availability from Data.gov.sg"
+          >
+            <svg class="w-3.5 h-3.5 text-emerald-600 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <span id="sync-btn-label">🔄 Live Sync SG Gov Data</span>
+          </button>
+
+          <!-- API Guide Shortcut -->
+          <button 
+            id="btn-view-api-guide"
+            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 flex items-center gap-1.5 cursor-pointer transition-all"
+          >
+            <span>📡 APIs & LTA Specs</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar with explicit Search Button -->
+      <form id="cp-search-form" class="flex flex-col sm:flex-row items-stretch gap-2.5">
         <div class="relative flex-1">
           <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -40,107 +110,152 @@ export function renderCarparkList(container) {
           <input 
             type="text" 
             id="cp-search-input" 
-            value="${appState.searchQuery}"
-            placeholder="Search carparks, malls, HDB/URA codes (e.g. Suntec, Marina, Chinatown, TPY08)..."
-            class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all font-medium"
+            value="${appState.searchQuery || ''}"
+            placeholder="Search by location, mall, HDB MSCP, town (e.g. Orchard, Jurong, Woodlands, Tampines, Suntec, B1-01)..."
+            class="w-full pl-11 pr-10 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all font-medium"
           />
           ${appState.searchQuery ? `
-            <button id="btn-clear-search" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+            <button type="button" id="btn-clear-search" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
           ` : ''}
         </div>
 
+        <!-- Explicit Search Button -->
+        <button 
+          type="submit" 
+          id="btn-search-trigger"
+          class="px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <span>Search Carpark</span>
+        </button>
+
         <!-- Vehicle Type Filter -->
-        <div class="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shrink-0">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 hidden sm:inline">Vehicle:</span>
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
           ${Object.values(VEHICLE_TYPES).map(v => {
             const isSelected = appState.selectedVehicle === v.id;
             return `
               <button 
+                type="button"
                 data-vehicle-id="${v.id}"
-                class="btn-vehicle-filter px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                class="btn-vehicle-filter px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   isSelected 
                     ? 'bg-white text-blue-600 shadow-xs border border-slate-200/60' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }"
               >
                 <span>${v.icon}</span>
-                <span>${v.name.split('/')[0].trim()}</span>
+                <span class="hidden sm:inline">${v.name.split('/')[0].trim()}</span>
               </button>
             `;
           }).join('')}
         </div>
-      </div>
+      </form>
 
-      <!-- Zone Filter Pills -->
+      <!-- Region & Town Filter Pills -->
       <div class="flex items-center gap-2 overflow-x-auto pt-4 pb-1 no-scrollbar border-t border-slate-100 mt-4">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Zone:</span>
-        ${allZones.map(zone => {
-          const isSelected = (appState.selectedZone === zone) || (zone === 'ALL' && !appState.selectedZone);
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Region:</span>
+        ${regions.map(r => {
+          const isSelected = (appState.selectedZone === r.id) || (r.id === 'ALL' && (!appState.selectedZone || appState.selectedZone === 'ALL'));
           return `
             <button 
-              data-zone="${zone}"
+              type="button"
+              data-zone="${r.id}"
               class="btn-zone-filter px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 isSelected 
                   ? 'bg-slate-900 text-white shadow-xs' 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }"
             >
-              ${zone === 'ALL' ? '📍 All Singapore' : zone}
+              ${r.label}
             </button>
           `;
         }).join('')}
       </div>
     </div>
 
-    <!-- Real-time Status Header -->
+    <!-- Active Filter Feedback & Real-Time Legend -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 px-1">
-      <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2.5 flex-wrap">
         <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-        <h2 class="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
-          Real-Time Availability: <span class="text-blue-600 font-semibold">${currentVehicleInfo.name}</span>
-        </h2>
+        <h3 class="text-base font-bold text-slate-800 tracking-tight">
+          ${hasSearch 
+            ? `Search Results for "${appState.searchQuery}": <span class="text-blue-600 font-semibold">${primaryMatches.length} Direct Matches</span>`
+            : `Live Parking Availability: <span class="text-blue-600 font-semibold">${currentVehicleInfo.name}</span> (${primaryMatches.length} Facilities)`
+          }
+        </h3>
       </div>
 
       <div class="flex items-center gap-4 text-xs font-medium text-slate-500">
         <div class="flex items-center gap-1.5">
-          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
           <span>Available</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
           <span>Expiring &le;15m</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="w-3 h-3 rounded-full bg-slate-200"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
           <span>Occupied</span>
         </div>
       </div>
     </div>
 
-    <!-- Carpark Grid Cards -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      ${carparks.map(cp => renderCarparkCard(cp, vType)).join('')}
-    </div>
-
-    ${carparks.length === 0 ? `
-      <div class="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm">
-        <div class="text-4xl mb-3">🔍</div>
-        <h3 class="text-base font-bold text-slate-800 mb-1">No Carpark Facilities Found</h3>
+    <!-- Section 1: Primary Matching Carparks -->
+    ${primaryMatches.length > 0 ? `
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        ${primaryMatches.map(cp => renderCarparkCard(cp, vType, true)).join('')}
+      </div>
+    ` : `
+      <div class="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm mb-8">
+        <div class="text-4xl mb-2">🔍</div>
+        <h4 class="text-base font-bold text-slate-800 mb-1">No Direct Matches for "${appState.searchQuery}"</h4>
         <p class="text-xs text-slate-500 max-w-md mx-auto mb-4">
-          We couldn't find any facilities matching "${appState.searchQuery}". Try searching by zone like "Marina Bay" or reset your filters.
+          We couldn't find an exact carpark with that specific name. See available carparks in other Singapore locations below, or try searching by region (e.g. Orchard, Marina, Jurong, Tampines, Woodlands).
         </p>
-        <button id="btn-reset-filters" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 cursor-pointer shadow-sm shadow-blue-600/20">
-          Reset All Filters
+        <button id="btn-reset-filters-empty" class="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 cursor-pointer shadow-xs">
+          Clear Search & Show All Carparks
         </button>
+      </div>
+    `}
+
+    <!-- Section 2: Other Locations Across Singapore (Directly fulfilling user request) -->
+    ${(hasSearch && otherLocationCarparks.length > 0) ? `
+      <div class="mt-10 pt-8 border-t border-slate-200">
+        <div class="flex items-center justify-between gap-4 mb-5">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">Islandwide Alternative Options</span>
+              <span class="text-xs text-slate-500 font-medium">(${otherLocationCarparks.length} other facilities)</span>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mt-1">
+              Available Carparks in Other Locations Across Singapore
+            </h3>
+            <p class="text-xs text-slate-500">
+              Explore available parking spots in adjacent districts and major hubs across Singapore.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          ${otherLocationCarparks.map(cp => renderCarparkCard(cp, vType, false)).join('')}
+        </div>
       </div>
     ` : ''}
   `;
 
-  // Attach search listener
+  // Attach search form listener
+  const searchForm = container.querySelector('#cp-search-form');
   const searchInput = container.querySelector('#cp-search-input');
-  if (searchInput) {
+  
+  if (searchForm && searchInput) {
+    searchForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      appState.setSearchQuery(searchInput.value);
+    });
+
     searchInput.addEventListener('input', (e) => {
       appState.setSearchQuery(e.target.value);
     });
@@ -153,9 +268,9 @@ export function renderCarparkList(container) {
     });
   }
 
-  const resetFilters = container.querySelector('#btn-reset-filters');
-  if (resetFilters) {
-    resetFilters.addEventListener('click', () => {
+  const resetBtn = container.querySelector('#btn-reset-filters-empty');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
       appState.setSearchQuery('');
       appState.setSelectedZone('ALL');
     });
@@ -194,9 +309,89 @@ export function renderCarparkList(container) {
       appState.setTab('analytics');
     });
   });
+
+  // API Guide tab button
+  const apiGuideBtn = container.querySelector('#btn-view-api-guide');
+  if (apiGuideBtn) {
+    apiGuideBtn.addEventListener('click', () => {
+      appState.setTab('apis');
+    });
+  }
+
+  // Live SG Gov Sync Button
+  const liveSyncBtn = container.querySelector('#btn-live-sg-sync');
+  const syncBtnLabel = container.querySelector('#sync-btn-label');
+  if (liveSyncBtn) {
+    liveSyncBtn.addEventListener('click', async () => {
+      liveSyncBtn.disabled = true;
+      if (syncBtnLabel) syncBtnLabel.textContent = 'Connecting Data.gov.sg...';
+
+      const res = await fetchLiveSgGovCarparks();
+      liveSyncBtn.disabled = false;
+
+      if (res.success && res.lookup) {
+        let updatedCount = 0;
+        appState.carparks.forEach(cp => {
+          if (cp.govCode && res.lookup[cp.govCode]) {
+            const govInfo = res.lookup[cp.govCode];
+            if (govInfo.C) {
+              cp.availableLots.sedan = govInfo.C.available;
+              cp.totalLots.sedan = govInfo.C.total || cp.totalLots.sedan;
+              updatedCount++;
+            }
+            if (govInfo.M) {
+              cp.availableLots.motorcycle = govInfo.M.available;
+            }
+            if (govInfo.H) {
+              cp.availableLots.heavy = govInfo.H.available;
+            }
+          }
+        });
+
+        appState.saveCarparks();
+        appState.notify();
+
+        if (syncBtnLabel) {
+          syncBtnLabel.textContent = `✓ Synced (${res.totalCarparksReported} lots)`;
+        }
+      } else {
+        if (syncBtnLabel) {
+          syncBtnLabel.textContent = '✓ Sensor Live (Simulated)';
+        }
+      }
+
+      setTimeout(() => {
+        if (syncBtnLabel) syncBtnLabel.textContent = '🔄 Live Sync SG Gov Data';
+      }, 3500);
+    });
+  }
+
+  // Toggle Spot Breakdown Accordion
+  container.querySelectorAll('.btn-toggle-spots').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const targetEl = container.querySelector(`#${targetId}`);
+      if (targetEl) {
+        const isHidden = targetEl.classList.contains('hidden');
+        if (isHidden) {
+          targetEl.classList.remove('hidden');
+          btn.innerHTML = `
+            <span>Hide Specific Lot Numbers</span>
+            <svg class="w-3.5 h-3.5 rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          `;
+        } else {
+          targetEl.classList.add('hidden');
+          btn.innerHTML = `
+            <span>View Levels, Zones & Lot Numbers (${btn.getAttribute('data-count')})</span>
+            <svg class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          `;
+        }
+      }
+    });
+  });
 }
 
-function renderCarparkCard(cp, vType) {
+function renderCarparkCard(cp, vType, isPrimary = true) {
   const available = cp.availableLots[vType] || 0;
   const total = cp.totalLots[vType] || 100;
   const occupied = Math.max(0, total - available);
@@ -217,20 +412,24 @@ function renderCarparkCard(cp, vType) {
   }
 
   const rateInfo = cp.rates[vType] || cp.rates.sedan;
-  const expiringSpots = cp.spots ? cp.spots.filter(s => s.status === 'expiring' && (s.type === vType || !s.type)) : [];
+  const spots = cp.spots || [];
+  const accordionId = `spots-accordion-${cp.id}`;
 
   return `
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden">
+    <div class="bg-white rounded-3xl border ${isPrimary ? 'border-slate-200' : 'border-slate-200/80 bg-slate-50/40'} shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden">
       <!-- Card Top Header -->
       <div class="p-6 pb-4">
         <div class="flex items-start justify-between gap-3">
           <div>
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+              <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 font-mono">
                 ${cp.code}
               </span>
               <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                ${cp.operator}
+                ${cp.region || 'Singapore'}
+              </span>
+              <span class="px-2 py-0.5 rounded-lg text-[10px] font-medium bg-slate-100 text-slate-600">
+                ${cp.operator.split('/')[0].trim()}
               </span>
               <span class="text-xs text-slate-400 font-medium">
                 • ${cp.distanceKm} km away
@@ -284,28 +483,85 @@ function renderCarparkCard(cp, vType) {
             <span class="text-[11px] text-amber-700 font-medium">Freeing up &le; 15 mins</span>
           </div>
 
-          ${expiringSpots.length > 0 ? `
-            <div class="flex items-center gap-2 mt-2 overflow-x-auto no-scrollbar">
-              ${expiringSpots.slice(0, 3).map(s => {
-                const minLeft = s.expiresAt ? Math.max(1, Math.round((s.expiresAt - Date.now()) / 60000)) : 5;
-                return `
-                  <button 
-                    data-carpark-id="${cp.id}" 
-                    data-spot-id="${s.id}"
-                    class="btn-reserve-carpark flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-xl border border-amber-300 text-xs text-slate-800 hover:bg-amber-100/70 cursor-pointer shrink-0 shadow-2xs font-medium"
-                  >
-                    <span class="font-bold font-mono text-amber-800">${s.id}</span>
-                    <span class="text-slate-500 text-[10px]">(${s.level})</span>
-                    <span class="bg-amber-100 text-amber-800 px-1.5 rounded font-bold text-[10px]">~${minLeft}m left</span>
-                  </button>
-                `;
-              }).join('')}
-            </div>
-          ` : `
-            <p class="text-[11px] text-amber-800/80 mt-1">
-              Active sessions tracked in real-time so you can reserve upcoming freed spots before arrival.
+          <div class="flex items-center justify-between gap-2 mt-2">
+            <p class="text-[11px] text-amber-800/90">
+              Reserve upcoming freed spots in advance before reaching gantry.
             </p>
-          `}
+            <button 
+              type="button"
+              data-target="${accordionId}"
+              data-count="${spots.length}"
+              class="btn-toggle-spots shrink-0 text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs"
+            >
+              <span>View Levels, Zones & Lot Numbers (${spots.length})</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expandable Granular Spot Details (Level, Zone, Lot Number) -->
+        <div id="${accordionId}" class="hidden mt-3 pt-3 border-t border-slate-100 space-y-2">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span>Granular Bay Breakdown</span>
+            <span>Real-Time Status</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+            ${spots.map(s => {
+              const isAvail = s.status === 'available';
+              const isExp = s.status === 'expiring';
+              const minLeft = s.expiresAt ? Math.max(1, Math.round((s.expiresAt - Date.now()) / 60000)) : 4;
+
+              return `
+                <div class="p-2.5 rounded-xl border ${
+                  isAvail 
+                    ? 'bg-emerald-50/50 border-emerald-200' 
+                    : isExp 
+                      ? 'bg-amber-50/50 border-amber-200' 
+                      : 'bg-slate-50 border-slate-200 opacity-60'
+                } flex items-center justify-between gap-2">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-mono font-bold text-xs ${isAvail ? 'text-emerald-900' : isExp ? 'text-amber-900' : 'text-slate-700'}">
+                        ${s.id}
+                      </span>
+                      ${s.isEV ? `<span class="text-[9px] bg-blue-100 text-blue-800 font-bold px-1 rounded">⚡ EV</span>` : ''}
+                    </div>
+                    <div class="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <span class="font-semibold text-slate-700">${s.level || 'B1'}</span>
+                      <span>•</span>
+                      <span>${s.zone || 'Zone A'}</span>
+                    </div>
+                    ${s.distanceToLift ? `
+                      <div class="text-[9px] text-slate-400">🚶 ${s.distanceToLift}</div>
+                    ` : ''}
+                  </div>
+
+                  <div class="flex flex-col items-end gap-1">
+                    ${isAvail ? `
+                      <button 
+                        data-carpark-id="${cp.id}"
+                        data-spot-id="${s.id}"
+                        class="btn-reserve-carpark px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer shadow-2xs"
+                      >
+                        Reserve Lot
+                      </button>
+                    ` : isExp ? `
+                      <button 
+                        data-carpark-id="${cp.id}"
+                        data-spot-id="${s.id}"
+                        class="btn-reserve-carpark px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] cursor-pointer shadow-2xs"
+                      >
+                        Pre-book (~${minLeft}m)
+                      </button>
+                    ` : `
+                      <span class="text-[10px] text-slate-400 font-medium">Occupied</span>
+                    `}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
         </div>
 
         <!-- Rates & Feature highlights -->
@@ -358,4 +614,3 @@ function renderCarparkCard(cp, vType) {
     </div>
   `;
 }
-

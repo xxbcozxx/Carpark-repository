@@ -23,14 +23,14 @@ export function renderNavbar(container) {
                   ParkWise <span class="text-blue-600">Pro</span>
                 </h1>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden sm:block">
-                  Smart Carpark & Deals Hub
+                  Singapore Smart Carpark & Deals Hub
                 </p>
               </div>
             </div>
           </div>
 
           <!-- Vehicle Type Quick Switcher -->
-          <div class="hidden lg:flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200/80">
+          <div class="hidden xl:flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200/80">
             <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2">Vehicle:</span>
             ${Object.values(VEHICLE_TYPES).map(v => {
               const isSel = currentVehicle === v.id;
@@ -51,30 +51,30 @@ export function renderNavbar(container) {
           </div>
 
           <!-- Desktop Navigation Tabs & Location Indicator -->
-          <div class="flex items-center gap-4 sm:gap-6">
-            <nav class="flex items-center gap-1 sm:gap-1.5">
+          <div class="flex items-center gap-3 sm:gap-4">
+            <nav class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
               <button 
                 data-nav-tab="explore"
-                class="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                class="px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   currentTab === 'explore' 
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                <span class="hidden md:inline">Dashboard</span>
+                <span class="hidden sm:inline">Carparks</span>
               </button>
 
               <button 
                 data-nav-tab="deals"
-                class="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer relative ${
+                class="px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer relative ${
                   currentTab === 'deals' 
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }"
               >
                 <span>🎟️</span>
-                <span class="hidden md:inline">Mall Deals</span>
+                <span class="hidden sm:inline">Mall Deals</span>
                 <span class="px-1.5 py-0.2 rounded-full text-[10px] ${currentTab === 'deals' ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-700'} font-black">
                   ${appState.mallPromos.length}
                 </span>
@@ -82,7 +82,7 @@ export function renderNavbar(container) {
 
               <button 
                 data-nav-tab="analytics"
-                class="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                class="px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   currentTab === 'analytics' 
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -93,15 +93,27 @@ export function renderNavbar(container) {
               </button>
 
               <button 
+                data-nav-tab="apis"
+                class="px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  currentTab === 'apis' 
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }"
+              >
+                <span>📡</span>
+                <span class="hidden md:inline">APIs & Specs</span>
+              </button>
+
+              <button 
                 data-nav-tab="session"
-                class="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer relative ${
+                class="px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer relative ${
                   currentTab === 'session' 
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }"
               >
                 <span>🧾</span>
-                <span class="hidden md:inline">Active Session</span>
+                <span class="hidden md:inline">Session</span>
                 ${activeSession ? `
                   <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
                 ` : ''}
@@ -109,12 +121,12 @@ export function renderNavbar(container) {
             </nav>
 
             <!-- Location Meta -->
-            <div class="hidden sm:flex items-center gap-3 pl-3 border-l border-slate-200">
+            <div class="hidden lg:flex items-center gap-2.5 pl-3 border-l border-slate-200">
               <div class="text-right">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Current Location</p>
-                <p class="text-xs font-bold text-slate-700">Marina Bay Central, SG</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</p>
+                <p class="text-xs font-bold text-slate-700">Singapore</p>
               </div>
-              <div class="w-9 h-9 rounded-full bg-blue-50 border-2 border-white shadow-xs flex items-center justify-center text-blue-600 font-bold text-xs">
+              <div class="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold text-xs">
                 SG
               </div>
             </div>

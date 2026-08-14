@@ -9,13 +9,14 @@ import { renderCarparkList } from './components/carparkList.js';
 import { renderMallDealsPage } from './components/mallDealsPage.js';
 import { renderHistoricalAnalytics } from './components/historicalAnalytics.js';
 import { renderActiveSessionView } from './components/activeSessionView.js';
+import { renderApiGuideView } from './components/apiGuideView.js';
 
 function initApp() {
   const root = document.getElementById('root');
   if (!root) return;
 
   // Render main layout frame
-  root.className = 'min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white';
+  root.className = 'min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white';
   
   root.innerHTML = `
     <!-- Top Navigation -->
@@ -36,14 +37,14 @@ function initApp() {
     <footer class="bg-white border-t border-slate-200 py-6 text-xs text-slate-500 mt-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">P</div>
-          <span class="font-bold text-slate-800">ParkPulse Singapore</span>
-          <span>• Connected to LTA Datamall & Mall Merchant APIs</span>
+          <div class="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">P</div>
+          <span class="font-bold text-slate-800">ParkWise Pro Singapore</span>
+          <span>• Connected to LTA DataMall, Data.gov.sg & URA Open APIs</span>
         </div>
         <div class="flex items-center gap-4 text-slate-600">
-          <span>Sedan • Motorcycle • Heavy Vehicle</span>
+          <span>Sedan • Motorcycle • Heavy Fleet</span>
           <span>•</span>
-          <span class="font-mono text-emerald-600 font-bold">100% Real-Time Sensor Sync</span>
+          <span class="font-mono text-emerald-600 font-bold">100% Real-Time Bay & Sensor Telemetry</span>
         </div>
       </div>
     </footer>
@@ -75,6 +76,8 @@ function initApp() {
       renderHistoricalAnalytics(viewMount);
     } else if (appState.activeTab === 'session') {
       renderActiveSessionView(viewMount);
+    } else if (appState.activeTab === 'apis') {
+      renderApiGuideView(viewMount);
     }
   }
 
